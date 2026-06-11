@@ -13,9 +13,6 @@ const GEMINI_MODELS = {
   TRANSLATE: 'gemini-2.5-flash'
 };
 
-// Paste your API key here to bypass the popup. Leave as empty string to use popup storage.
-const HARDCODED_API_KEY = "";
-
 const API_DEFAULTS = {
   QUIZ_MAX_TOKENS: 5000,
   NOTES_MAX_TOKENS: 8192,
@@ -212,7 +209,7 @@ const GRADE_THRESHOLDS = [
   { min: 70, text: 'Good work! You understood most of the key concepts.', color: '#ffc107', grade: 'B' },
   { min: 60, text: 'Fair performance. Review the concepts and practice more.', color: '#fd7e14', grade: 'C' },
   { min: 50, text: 'Below average. Focus on understanding the fundamentals.', color: '#dc3545', grade: 'D' },
-  { min: 0,  text: 'Keep studying! Review the content thoroughly and try again.', color: '#dc3545', grade: 'F' }
+  { min: 0, text: 'Keep studying! Review the content thoroughly and try again.', color: '#dc3545', grade: 'F' }
 ];
 
 console.log('📦 PYICE constants loaded');

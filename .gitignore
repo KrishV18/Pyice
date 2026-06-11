@@ -1,0 +1,2 @@
+# Ignore the config file so the API key doesn't get uploaded to GitHub
+src/shared/config.js
