@@ -3,7 +3,12 @@
  * Unified content extraction pipeline for YouTube videos.
  * Shared by both quiz and notes generators.
  *
- * Priority: YouTube TimedText API → Page Transcript DOM → Live Captions → Manual Input
+ * Priority:
+ *   1. ytInitialPlayerResponse captionTracks (most reliable, no API key)
+ *   2. Page Transcript Panel DOM (if panel already open)
+ *   3. Auto-open Transcript Panel → scrape DOM
+ *   4. Live Captions MutationObserver
+ *   5. Manual text input fallback
  */
 
 class ContentExtractor {
@@ -16,10 +21,6 @@ class ContentExtractor {
 
   // ── Video ID ─────────────────────────────────────────────────────────────
 
-  /**
-   * Extract YouTube video ID from the current page URL.
-   * @returns {string|null}
-   */
   getVideoId() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('v') || null;
@@ -27,53 +28,57 @@ class ContentExtractor {
 
   // ── Full Extraction Pipeline ─────────────────────────────────────────────
 
-  /**
-   * Attempt to extract content using all available methods in priority order.
-   *
-   * @param {Object} callbacks
-   * @param {function} callbacks.onStatus - Called with status messages
-   * @param {function} callbacks.onSuccess - Called with extracted text
-   * @param {function} callbacks.onFallbackToManual - Called if all auto methods fail
-   * @param {number} [minChars] - Minimum chars to consider extraction complete
-   */
   async extractContent(callbacks, minChars = CONTENT_THRESHOLDS.MIN_QUIZ_CHARS) {
     const { onStatus, onSuccess, onFallbackToManual } = callbacks;
 
-    // Method 1: YouTube TimedText API
-    onStatus('🔍 Attempting to fetch transcript via API...');
-    const videoId = this.getVideoId();
-    if (videoId) {
+    // ── Method 1: ytInitialPlayerResponse (most reliable) ──────────────────
+    onStatus('🔍 Extracting transcript from video data...');
+    try {
+      const apiText = await this.fetchFromPlayerResponse();
+      if (apiText && apiText.trim().length >= minChars) {
+        this.captionText = apiText;
+        onStatus('✅ Transcript extracted successfully!');
+        onSuccess(this.captionText);
+        return;
+      }
+    } catch (err) {
+      console.warn('PYICE: playerResponse extraction failed:', err);
+    }
+
+    // ── Method 2: Transcript panel already open in DOM ─────────────────────
+    onStatus('🔍 Checking for open transcript panel...');
+    try {
+      const domText = this.scrapeTranscriptPanel();
+      if (domText && domText.trim().length >= minChars) {
+        this.captionText = domText;
+        onStatus('✅ Transcript extracted from page!');
+        onSuccess(this.captionText);
+        return;
+      }
+    } catch (err) {
+      console.warn('PYICE: DOM transcript scrape failed:', err);
+    }
+
+    // ── Method 3: Auto-open transcript panel then scrape ───────────────────
+    onStatus('📂 Opening transcript panel...');
+    const opened = await this.openTranscriptPanel();
+    if (opened) {
+      await new Promise(r => setTimeout(r, 2000)); // Wait for panel to render
       try {
-        const apiText = await this.fetchApiTranscript(videoId);
-        if (apiText && apiText.trim().length >= minChars) {
-          this.captionText = apiText;
-          onStatus('✅ Transcript fetched successfully via API');
+        const domText = this.scrapeTranscriptPanel();
+        if (domText && domText.trim().length >= minChars) {
+          this.captionText = domText;
+          onStatus('✅ Transcript extracted from panel!');
           onSuccess(this.captionText);
           return;
         }
-      } catch (error) {
-        console.warn('PYICE: API transcript fetch failed:', error);
+      } catch (err) {
+        console.warn('PYICE: Post-open DOM scrape failed:', err);
       }
     }
 
-    // Method 2: Page Transcript DOM
-    onStatus('🔍 Checking for page transcript...');
-    if (this.checkPageTranscript()) {
-      try {
-        const pageText = await this.extractPageTranscript();
-        if (pageText && pageText.trim().length >= minChars) {
-          this.captionText = pageText;
-          onStatus('✅ Transcript extracted from page');
-          onSuccess(this.captionText);
-          return;
-        }
-      } catch (error) {
-        console.warn('PYICE: Page transcript extraction failed:', error);
-      }
-    }
-
-    // Method 3: Live Captions
-    onStatus('🎧 Starting live caption collection... (play the video)');
+    // ── Method 4: Live caption observer ────────────────────────────────────
+    onStatus('🎧 Collecting live captions — make sure captions are ON and play the video...');
     this.startCaptionObserver(
       (currentText) => {
         onStatus(`📝 Collecting captions: ${currentText.length} chars...`);
@@ -85,7 +90,7 @@ class ContentExtractor {
       minChars
     );
 
-    // Set a timeout: if captions don't come in 60s, offer manual input
+    // 60-second safety timeout → manual fallback
     setTimeout(() => {
       if (this.isCollecting && this.captionText.length < minChars) {
         this.stopCaptionObserver();
@@ -94,132 +99,233 @@ class ContentExtractor {
     }, 60000);
   }
 
-  // ── Method 1: YouTube TimedText API ──────────────────────────────────────
+  // ── Method 1: ytInitialPlayerResponse ────────────────────────────────────
 
   /**
-   * Fetch transcript from YouTube's internal timedtext API.
-   * @param {string} videoId
-   * @returns {Promise<string>}
+   * Read captionTracks from the page's ytInitialPlayerResponse global,
+   * then fetch the actual timed-text via ?fmt=json3.
+   * This works on any video with captions — no API key required.
    */
-  async fetchApiTranscript(videoId) {
-    const languages = ['en', 'en-US', 'en-GB', 'hi'];
+  async fetchFromPlayerResponse() {
+    // ytInitialPlayerResponse is a global set by YouTube's page JS
+    const playerResp = this._getPlayerResponse();
+    if (!playerResp) {
+      console.warn('PYICE: ytInitialPlayerResponse not found');
+      return '';
+    }
 
-    for (const lang of languages) {
-      try {
-        const url = `https://www.youtube.com/api/timedtext?lang=${lang}&v=${videoId}`;
-        const response = await fetch(url);
+    const tracks = playerResp?.captions
+      ?.playerCaptionsTracklistRenderer
+      ?.captionTracks;
 
-        if (response.ok) {
-          const text = await response.text();
-          if (text && text.trim().length > 0) {
-            // Parse XML response
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(text, 'text/xml');
-            const textNodes = xmlDoc.querySelectorAll('text');
+    if (!tracks || tracks.length === 0) {
+      console.warn('PYICE: No captionTracks found in playerResponse');
+      return '';
+    }
 
-            if (textNodes.length > 0) {
-              const extracted = Array.from(textNodes)
-                .map(node => node.textContent)
-                .join(' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+    console.log(`PYICE: Found ${tracks.length} caption track(s):`);
+    tracks.forEach((t, i) => console.log(`  [${i}] lang=${t.languageCode} name=${t.name?.simpleText || '?'}`));
 
-              if (extracted.length > 0) {
-                console.log(`PYICE: Fetched transcript (${lang}): ${extracted.length} chars`);
-                return extracted;
-              }
+    // Prefer English tracks
+    const preferred = tracks.find(t =>
+      t.languageCode === 'en' ||
+      t.languageCode === 'en-US' ||
+      t.languageCode === 'en-GB'
+    ) || tracks[0]; // fallback to first available
+
+    const baseUrl = preferred.baseUrl;
+    if (!baseUrl) return '';
+
+    // Fetch with JSON format (more stable than XML)
+    const url = baseUrl.includes('fmt=') ? baseUrl : `${baseUrl}&fmt=json3`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Transcript fetch failed: ${response.status}`);
+
+    const data = await response.json();
+
+    // json3 format: { events: [{ segs: [{ utf8: "text" }] }] }
+    const text = (data.events || [])
+      .filter(e => e.segs)
+      .flatMap(e => e.segs)
+      .map(s => s.utf8 || '')
+      .join(' ')
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    console.log(`PYICE: Extracted ${text.length} chars from captionTracks (lang=${preferred.languageCode})`);
+    return text;
+  }
+
+  /**
+   * Safely access ytInitialPlayerResponse from the page.
+   * It's set as a window global by YouTube's own scripts.
+   */
+  _getPlayerResponse() {
+    try {
+      // Direct window global (works in most cases when running as content script)
+      if (window.ytInitialPlayerResponse &&
+          window.ytInitialPlayerResponse.captions) {
+        return window.ytInitialPlayerResponse;
+      }
+
+      // Fallback: extract from page source via script tags
+      const scripts = document.querySelectorAll('script:not([src])');
+      for (const script of scripts) {
+        const content = script.textContent;
+        if (content && content.includes('ytInitialPlayerResponse')) {
+          const match = content.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\})(?:;|\n|var |window\.)/s);
+          if (match) {
+            try {
+              const parsed = JSON.parse(match[1]);
+              if (parsed.captions) return parsed;
+            } catch (e) {
+              // malformed JSON, skip
             }
           }
         }
-      } catch (error) {
-        console.warn(`PYICE: TimedText API failed for lang=${lang}:`, error);
+      }
+    } catch (e) {
+      console.warn('PYICE: Could not access ytInitialPlayerResponse:', e);
+    }
+    return null;
+  }
+
+  // ── Method 2 & 3: Transcript Panel DOM ───────────────────────────────────
+
+  /**
+   * Scrape text from the YouTube transcript panel when it's open in the DOM.
+   * Targets the engagement panel that YouTube renders for transcripts.
+   */
+  scrapeTranscriptPanel() {
+    // Primary: engagement panel container (current YouTube 2025 structure)
+    const panelSelectors = [
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]',
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-transcript"]',
+      'ytd-transcript-renderer',
+    ];
+
+    // Segment text selectors inside the panel
+    const segmentSelectors = [
+      'ytd-transcript-segment-renderer .segment-text',
+      'ytd-transcript-segment-view-model .segment-text',
+      '.segment-text',
+    ];
+
+    for (const panelSel of panelSelectors) {
+      try {
+        const panel = document.querySelector(panelSel);
+        if (!panel) continue;
+
+        for (const segSel of segmentSelectors) {
+          const segments = panel.querySelectorAll(segSel);
+          if (segments.length > 0) {
+            const text = Array.from(segments)
+              .map(el => el.textContent.trim())
+              .filter(t => t.length > 0)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+            if (text.length > 0) {
+              console.log(`PYICE: Panel transcript scraped: ${text.length} chars`);
+              return text;
+            }
+          }
+        }
+      } catch (e) {
+        // skip invalid selector
       }
     }
 
     return '';
   }
 
-  // ── Method 2: Page Transcript DOM ────────────────────────────────────────
-
   /**
-   * Check if transcript segments exist in the page DOM.
-   * @returns {boolean}
+   * Try to open the YouTube transcript panel.
+   * Returns true if a button was found and clicked.
+   *
+   * YouTube places the "Show transcript" option:
+   *   - In the "..." overflow menu under the video (below the title)
+   *   - Or as a direct button inside ytd-video-description-transcript-section-renderer
    */
-  checkPageTranscript() {
-    for (const selector of YT_SELECTORS.TRANSCRIPT_SELECTORS) {
+  async openTranscriptPanel() {
+    // Strategy A: Direct transcript button (sometimes present without needing overflow menu)
+    const directSelectors = [
+      // 2025 YouTube: button inside transcript section component
+      'ytd-video-description-transcript-section-renderer button',
+      // aria-label based
+      'button[aria-label="Show transcript"]',
+      'tp-yt-paper-button[aria-label="Show transcript"]',
+    ];
+
+    for (const sel of directSelectors) {
       try {
-        if (document.querySelector(selector)) return true;
-      } catch (e) {
-        // Invalid selector, skip
+        const btn = document.querySelector(sel);
+        if (btn) {
+          console.log(`PYICE: Clicking transcript button via: ${sel}`);
+          btn.click();
+          await new Promise(r => setTimeout(r, 500));
+          return true;
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    // Strategy B: Open the "..." menu, then click "Show transcript"
+    const menuOpened = await this._openOverflowMenu();
+    if (menuOpened) {
+      await new Promise(r => setTimeout(r, 500));
+
+      // Look for transcript option in the menu
+      const menuItems = document.querySelectorAll(
+        'ytd-menu-service-item-renderer yt-formatted-string, tp-yt-paper-item yt-formatted-string, ytd-menu-navigation-item-renderer yt-formatted-string'
+      );
+
+      for (const item of menuItems) {
+        const text = item.textContent.trim().toLowerCase();
+        if (text.includes('transcript') || text.includes('transcript')) {
+          console.log('PYICE: Found transcript menu item, clicking...');
+          item.closest('ytd-menu-service-item-renderer, tp-yt-paper-item, ytd-menu-navigation-item-renderer')?.click();
+          await new Promise(r => setTimeout(r, 300));
+          return true;
+        }
       }
     }
+
+    console.warn('PYICE: Could not open transcript panel');
     return false;
   }
 
   /**
-   * Extract transcript text from the page DOM.
-   * @returns {Promise<string>}
+   * Click the "..." overflow/more options button below the video.
    */
-  async extractPageTranscript() {
-    // Try to open transcript panel if not visible
-    await this._tryOpenTranscript();
+  async _openOverflowMenu() {
+    const menuButtonSelectors = [
+      // The three-dot menu on the video actions row
+      '#info ytd-menu-renderer button',
+      'ytd-menu-renderer.ytd-video-primary-info-renderer button[aria-label="More actions"]',
+      '#actions ytd-button-renderer:last-child button',
+      'ytd-segmented-like-dislike-button-renderer ~ ytd-menu-renderer button',
+    ];
 
-    // Wait a moment for DOM to update
-    await new Promise(r => setTimeout(r, 1000));
-
-    // Try each selector
-    for (const selector of YT_SELECTORS.TRANSCRIPT_SELECTORS) {
+    for (const sel of menuButtonSelectors) {
       try {
-        const segments = document.querySelectorAll(selector);
-        if (segments.length > 0) {
-          const text = Array.from(segments)
-            .map(el => el.textContent.trim())
-            .filter(t => t.length > 0)
-            .join(' ')
-            .replace(/\[\d+:\d+\]/g, '')     // Remove timestamps like [1:23]
-            .replace(/\d+:\d+/g, '')          // Remove timestamps like 1:23
-            .replace(/\s+/g, ' ')
-            .trim();
-
-          if (text.length > 0) {
-            console.log(`PYICE: Page transcript extracted: ${text.length} chars`);
-            return text;
-          }
-        }
-      } catch (e) {
-        // Skip invalid selector
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Attempt to click the "Show transcript" button to open the transcript panel.
-   */
-  async _tryOpenTranscript() {
-    for (const selector of YT_SELECTORS.TRANSCRIPT_BUTTON_SELECTORS) {
-      try {
-        const btn = document.querySelector(selector);
+        const btn = document.querySelector(sel);
         if (btn) {
+          console.log(`PYICE: Opening overflow menu via: ${sel}`);
           btn.click();
-          await new Promise(r => setTimeout(r, 500));
-          return;
+          await new Promise(r => setTimeout(r, 400));
+          return true;
         }
-      } catch (e) {
-        // Skip
-      }
+      } catch (e) { /* skip */ }
     }
+
+    return false;
   }
 
-  // ── Method 3: Live Caption Observer ──────────────────────────────────────
+  // ── Method 4: Live Caption Observer ──────────────────────────────────────
 
-  /**
-   * Start observing live captions via MutationObserver.
-   *
-   * @param {function} onUpdate - Called with current accumulated text on each change
-   * @param {number} [autoStopChars] - Auto-stop after this many chars
-   */
   startCaptionObserver(onUpdate, autoStopChars = CONTENT_THRESHOLDS.CAPTION_AUTO_STOP_CHARS) {
     if (this.captionObserver) {
       this.captionObserver.disconnect();
@@ -237,11 +343,8 @@ class ContentExtractor {
           lastCaption.text = text;
           this.captionText += ' ' + text;
 
-          if (onUpdate) {
-            onUpdate(this.captionText);
-          }
+          if (onUpdate) onUpdate(this.captionText);
 
-          // Auto-stop
           if (this.captionText.length >= autoStopChars) {
             this.stopCaptionObserver();
           }
@@ -249,19 +352,15 @@ class ContentExtractor {
       });
     });
 
-    // Observe the entire body for caption changes (YouTube injects captions dynamically)
     this.captionObserver.observe(document.body, {
       childList: true,
       subtree: true,
       characterData: true
     });
 
-    console.log('PYICE: Caption observer started');
+    console.log('PYICE: Live caption observer started');
   }
 
-  /**
-   * Stop the live caption observer.
-   */
   stopCaptionObserver() {
     if (this.captionObserver) {
       this.captionObserver.disconnect();
@@ -277,29 +376,9 @@ class ContentExtractor {
 
   // ── Accessors ────────────────────────────────────────────────────────────
 
-  /**
-   * Get the accumulated text content.
-   * @returns {string}
-   */
-  getText() {
-    return this.captionText.trim();
-  }
-
-  /**
-   * Set text content directly (e.g. from manual input).
-   * @param {string} text
-   */
-  setText(text) {
-    this.captionText = text;
-  }
-
-  /**
-   * Reset accumulated text and stop any observers.
-   */
-  reset() {
-    this.captionText = '';
-    this.stopCaptionObserver();
-  }
+  getText() { return this.captionText.trim(); }
+  setText(text) { this.captionText = text; }
+  reset() { this.captionText = ''; this.stopCaptionObserver(); }
 }
 
 console.log('📋 PYICE content extractor loaded');
