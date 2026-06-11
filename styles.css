@@ -1,0 +1,597 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PYICE — Consolidated Styles
+   All quiz, notes, and button styles in one file loaded via manifest.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Caveat:wght@400;500;600;700&family=Indie+Flower&display=swap');
+
+/* ── Extension Floating Buttons ─────────────────────────────────────────── */
+
+.pyice-btn-container {
+  position: fixed;
+  top: 52px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  gap: 10px;
+}
+
+.pyice-btn {
+  padding: 8px 16px;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.pyice-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.pyice-btn-quiz {
+  background: #667eea;
+}
+.pyice-btn-quiz:hover { background: #5a6fd8; }
+
+.pyice-btn-notes {
+  background: #28a745;
+}
+.pyice-btn-notes:hover { background: #218838; }
+
+
+/* ── Quiz UI ────────────────────────────────────────────────────────────── */
+
+.quiz-ui-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 400px;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  z-index: 10000;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+}
+
+.quiz-ui-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 12px 12px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quiz-ui-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.quiz-ui-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.quiz-ui-close:hover { background: rgba(255,255,255,0.2); }
+
+.quiz-ui-content { padding: 20px; }
+
+.quiz-status {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  border-left: 4px solid #667eea;
+}
+
+.quiz-btn {
+  width: 100%;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.quiz-btn:hover {
+  background: #5a6fd8;
+  transform: translateY(-1px);
+}
+.quiz-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.quiz-btn-small {
+  padding: 8px 12px;
+  font-size: 12px;
+  display: inline-block;
+  width: auto;
+}
+
+/* Quiz Question Cards */
+.quiz-question {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  border: 1px solid #e9ecef;
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.question-number {
+  background: #667eea;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.question-type {
+  background: #28a745;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.difficulty-badge {
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.marks-badge {
+  background: #17a2b8;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+.question-text {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-label {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.option-label:hover {
+  border-color: #667eea;
+  background: #f8f9ff;
+}
+.option-label input[type="radio"] { margin-right: 12px; }
+.option-label.correct { border-color: #28a745; background: #d4edda; }
+.option-label.incorrect { border-color: #dc3545; background: #f8d7da; }
+
+.question-input input,
+.question-input textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.question-input input:focus,
+.question-input textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.derivation-hint, .equation-hint, .numerical-hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Quiz Results */
+.quiz-results {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  border: 2px solid #667eea;
+}
+.results-header { text-align: center; margin-bottom: 20px; }
+.score-circle {
+  display: inline-flex;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #667eea;
+  color: white;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+.score-text { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.performance-text { color: #666; font-size: 14px; }
+
+.question-review {
+  margin: 12px 0;
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #e9ecef;
+}
+.question-review.correct { border-left-color: #28a745; }
+.question-review.incorrect { border-left-color: #dc3545; }
+
+.collection-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.collected-preview {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+}
+.preview-stats { font-weight: 600; color: #667eea; margin-bottom: 8px; }
+.preview-text { color: #666; font-style: italic; }
+
+.loading { text-align: center; padding: 40px; font-size: 16px; }
+.error { color: #dc3545; }
+.success { color: #28a745; }
+.language-info {
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+
+/* ── Notes UI ───────────────────────────────────────────────────────────── */
+
+.notes-ui-container {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 420px;
+  max-height: 85vh;
+  background: #fefbf3;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  z-index: 10000;
+  font-family: 'Kalam', cursive;
+  overflow-y: auto;
+  border: 2px solid #e0d5c0;
+}
+
+.notes-ui-header {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 14px 14px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.notes-ui-header h3 { margin: 0; font-size: 20px; font-weight: 700; }
+.notes-ui-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notes-ui-close:hover { background: rgba(255,255,255,0.2); }
+
+.notes-ui-content { padding: 20px; }
+
+.notes-status {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  border-left: 4px solid #28a745;
+  font-size: 14px;
+}
+
+.notes-btn {
+  width: 100%;
+  padding: 14px 16px;
+  margin: 8px 0;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Kalam', cursive;
+}
+.notes-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(40,167,69,0.3); }
+
+.action-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Kalam', cursive;
+}
+.action-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.3); }
+
+/* Notes Content Display */
+.notes-header-section {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  color: white;
+}
+.notes-title {
+  font-family: 'Caveat', cursive;
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+.notes-subtitle {
+  font-size: 14px;
+  opacity: 0.8;
+  letter-spacing: 2px;
+}
+
+.visual-section-title {
+  font-family: 'Caveat', cursive;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a73e8;
+  margin: 20px 0 10px;
+}
+
+.topic-header {
+  font-family: 'Caveat', cursive;
+  font-size: 24px;
+  font-weight: 700;
+  color: #7b1fa2;
+  margin: 20px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px dashed #e0d5c0;
+}
+
+.enhanced-visual-block {
+  background: white;
+  border: 2px solid #e0d5c0;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 12px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.visual-title {
+  font-family: 'Caveat', cursive;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin-bottom: 10px;
+}
+
+.svg-visual-container {
+  background: #fefefe;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+.svg-visual-container svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.visual-explanation {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #555;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.text-section-title {
+  font-family: 'Caveat', cursive;
+  font-size: 24px;
+  font-weight: 700;
+  color: #7b1fa2;
+  margin: 20px 0 10px;
+}
+
+.summary-content {
+  font-family: 'Indie Flower', cursive;
+  font-size: 20px;
+  line-height: 2;
+  color: #2c3e50;
+  font-weight: 600;
+  padding: 20px;
+  background: linear-gradient(135deg, #ffeaa7, #fab1a0, #fd79a8);
+  border-radius: 12px;
+  transform: rotate(-0.3deg);
+  border: 3px solid #e17055;
+  position: relative;
+}
+.summary-content::before {
+  content: '✏️';
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  font-size: 24px;
+  transform: rotate(15deg);
+}
+
+.notes-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  justify-content: center;
+}
+
+.success-notes { color: #28a745; font-weight: 600; }
+.error-notes { color: #dc3545; font-weight: 600; }
+.loading-notes {
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 16px;
+  color: #667eea;
+}
+
+/* Topic comprehensive block (for AI-generated content) */
+.topic-comprehensive {
+  background: linear-gradient(135deg, #f8f9ff 0%, #e8f4f8 100%);
+  border: 2px solid #4285f4;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 15px 0;
+  page-break-inside: avoid;
+}
+.topic-title {
+  font-family: 'Caveat', cursive;
+  color: #1a73e8;
+  font-size: 40px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+.topic-details { line-height: 1.6; margin-bottom: 12px; color: #333; }
+.point-item { padding: 4px 0; color: #555; }
+
+.image-container-enhanced {
+  margin: 10px 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* PDF viewer overlay */
+.pdf-viewer {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: white;
+  z-index: 100000;
+  overflow-y: auto;
+}
+.pdf-header {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100001;
+}
+.pdf-header h1 { font-size: 20px; margin: 0; }
+.pdf-actions { display: flex; gap: 10px; }
+.pdf-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.pdf-download { background: #28a745; color: white; }
+.pdf-download:hover { background: #218838; }
+.pdf-close { background: rgba(255,255,255,0.2); color: white; }
+.pdf-close:hover { background: rgba(255,255,255,0.3); }
+.pdf-content { padding: 20px; max-width: 900px; margin: 0 auto; }
+
+
+/* ── Print Styles ───────────────────────────────────────────────────────── */
+
+@media print {
+  .pyice-btn-container,
+  .quiz-ui-container,
+  .notes-ui-container,
+  .pdf-actions { display: none !important; }
+
+  .notes-header-section {
+    background: #f0f0f0 !important;
+    color: black !important;
+    border: 1px solid #ddd !important;
+  }
+
+  svg, img {
+    max-width: 100% !important;
+    max-height: 200mm !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain;
+    page-break-inside: avoid;
+  }
+
+  body { background: white; }
+}

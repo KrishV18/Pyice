@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "PYICE - Quiz & Notes Generator",
+  "version": "3.1.0",
+  "description": "Generate AI-powered quizzes and visual study notes from YouTube video content",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.jpg",
+      "48": "icon48.jpg",
+      "128": "icon128.jpg"
+    },
+    "default_title": "PYICE - Quiz & Notes"
+  },
+  "icons": {
+    "16": "icon16.jpg",
+    "48": "icon48.jpg",
+    "128": "icon128.jpg"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": [
+        "src/shared/constants.js",
+        "src/shared/storage.js",
+        "src/shared/ai-client.js",
+        "src/shared/content-extractor.js",
+        "src/shared/language.js",
+        "src/quiz/quiz.js",
+        "src/notes/notes.js",
+        "src/main.js"
+      ],
+      "css": ["styles.css"]
+    }
+  ]
+}
