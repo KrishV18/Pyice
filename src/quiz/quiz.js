@@ -88,6 +88,7 @@ class YouTubeQuizGenerator {
   addEventListeners() {
     document.getElementById('quiz-close-btn')?.addEventListener('click', () => {
       this.uiContainer.style.display = 'none';
+      this.resetUI(); // Fully reset state so next open is fresh
     });
 
     document.getElementById('start-quiz')?.addEventListener('click', () => {

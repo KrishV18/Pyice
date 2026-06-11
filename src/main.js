@@ -55,7 +55,20 @@
 
   function onNavigate() {
     // Small delay to let YouTube finish rendering
-    setTimeout(addExtensionButtons, 500);
+    setTimeout(() => {
+      addExtensionButtons();
+      
+      // Reset generators if video changes so stale state doesn't persist
+      if (window.pyiceQuizGenerator) {
+        window.pyiceQuizGenerator.resetUI();
+        window.pyiceQuizGenerator.uiContainer.style.display = 'none';
+      }
+      if (window.pyiceNotesGenerator) {
+        // Assuming notes generator has a similar reset or hide method
+        const ui = document.getElementById('notes-generator-ui');
+        if (ui) ui.style.display = 'none';
+      }
+    }, 500);
   }
 
   // YouTube SPA navigation events
