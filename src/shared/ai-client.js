@@ -80,7 +80,9 @@ class GeminiClient {
 
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig
+      generationConfig,
+      // Ask Gemini to return raw JSON — no markdown fences, ever
+      ...(parseJson ? { responseMimeType: 'application/json' } : {})
     };
 
     // Attempt with retry

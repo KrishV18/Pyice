@@ -8,19 +8,19 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 const GEMINI_MODELS = {
-  QUIZ: 'gemini-2.5-flash',
-  NOTES: 'gemini-2.0-flash-exp',
-  TRANSLATE: 'gemini-2.5-flash'
+  QUIZ:      'gemini-2.5-pro',    // Best quality for complex question generation
+  NOTES:     'gemini-2.5-pro',    // Best quality for structured notes + SVG
+  TRANSLATE: 'gemini-2.5-flash'   // Fast + accurate for language translation
 };
 
 const API_DEFAULTS = {
-  QUIZ_MAX_TOKENS: 5000,
+  QUIZ_MAX_TOKENS: 8192,
   NOTES_MAX_TOKENS: 8192,
   NOTES_TEMPERATURE: 0.7,
   NOTES_TOP_K: 40,
   NOTES_TOP_P: 0.95,
-  TIMEOUT_MS: 30000,
-  RETRY_COUNT: 1,
+  TIMEOUT_MS: 60000,      // 60s — gemini-2.5-pro can take longer on complex prompts
+  RETRY_COUNT: 2,
   RETRY_DELAY_MS: 2000
 };
 
