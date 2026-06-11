@@ -8,6 +8,12 @@ class PyiceStorage {
   // ── API Key Management (sync across devices) ──────────────────────────────
 
   static async getApiKey() {
+    // 1. Check hardcoded key first
+    if (typeof HARDCODED_API_KEY !== 'undefined' && HARDCODED_API_KEY && HARDCODED_API_KEY.trim() !== '') {
+      return HARDCODED_API_KEY.trim();
+    }
+
+    // 2. Fall back to chrome.storage
     try {
       const result = await chrome.storage.sync.get(STORAGE_KEYS.API_KEY);
       return result[STORAGE_KEYS.API_KEY] || '';

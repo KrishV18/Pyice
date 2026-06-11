@@ -13,6 +13,9 @@ const GEMINI_MODELS = {
   TRANSLATE: 'gemini-2.5-flash'
 };
 
+// Paste your API key here to bypass the popup. Leave as empty string to use popup storage.
+const HARDCODED_API_KEY = "";
+
 const API_DEFAULTS = {
   QUIZ_MAX_TOKENS: 5000,
   NOTES_MAX_TOKENS: 8192,
