@@ -5,10 +5,10 @@
 
 class PyiceStorage {
 
-  // ── API Key Management (sync across devices) ──────────────────────────────
+  // ── Gemini API Key Management (sync across devices) ──────────────────────
 
   static async getApiKey() {
-    // 1. Check hardcoded key first
+    // 1. Check hardcoded key first (dev convenience — defined in config.js)
     if (typeof HARDCODED_API_KEY !== 'undefined' && HARDCODED_API_KEY && HARDCODED_API_KEY.trim() !== '') {
       return HARDCODED_API_KEY.trim();
     }
@@ -18,7 +18,7 @@ class PyiceStorage {
       const result = await chrome.storage.sync.get(STORAGE_KEYS.API_KEY);
       return result[STORAGE_KEYS.API_KEY] || '';
     } catch (error) {
-      console.warn('Failed to get API key from storage:', error);
+      console.warn('Failed to get Gemini API key from storage:', error);
       return '';
     }
   }
@@ -26,10 +26,10 @@ class PyiceStorage {
   static async setApiKey(key) {
     try {
       await chrome.storage.sync.set({ [STORAGE_KEYS.API_KEY]: key });
-      console.log('API key saved to storage');
+      console.log('Gemini API key saved to storage');
       return true;
     } catch (error) {
-      console.error('Failed to save API key:', error);
+      console.error('Failed to save Gemini API key:', error);
       return false;
     }
   }
@@ -39,7 +39,7 @@ class PyiceStorage {
       await chrome.storage.sync.remove(STORAGE_KEYS.API_KEY);
       return true;
     } catch (error) {
-      console.error('Failed to clear API key:', error);
+      console.error('Failed to clear Gemini API key:', error);
       return false;
     }
   }
@@ -186,4 +186,4 @@ class PyiceStorage {
   }
 }
 
-console.log('💾 PYICE storage module loaded');
+console.log('💾 PYICE storage module loaded — Gemini key management active');

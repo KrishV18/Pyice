@@ -30,6 +30,14 @@ class YouTubeQuizGenerator {
   setupExtension() {
     this.createUI();
     this.checkAvailableOptions();
+
+    // Check Chrome AI availability and update badge on load
+    if (window.PyiceAI && window.PyiceAI.chromeAI) {
+      window.PyiceAI.chromeAI.isAvailable().then(available => {
+        if (available) console.log('[PYICE] Chrome AI is available ✓');
+        else console.log('[PYICE] Chrome AI not available — will use local fallback');
+      });
+    }
   }
 
   // ── UI Creation ──────────────────────────────────────────────────────────
@@ -44,9 +52,32 @@ class YouTubeQuizGenerator {
 
     this.uiContainer.innerHTML = `
       <div class="quiz-ui-header">
-        <h3>PYICE — QUIZ</h3>
+        <h3 style="display:flex; align-items:center;">
+          PYICE — QUIZ
+          <span id="pyice-ai-badge" style="display: none; align-items: center; gap: 4px; font-size: 11px; padding: 3px 9px; border-radius: 20px; border: 0.5px solid currentColor; font-weight: 500; cursor: help; margin-left: 8px;"></span>
+        </h3>
         <button class="quiz-ui-close" id="quiz-close-btn">×</button>
       </div>
+
+      <!-- WebLLM first-time download screen — hidden by default -->
+      <div id="pyice-download-screen" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 99999; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+        <div style="background: #fff; border-radius: 16px; padding: 32px 36px; max-width: 380px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+          <div style="font-size: 40px; margin-bottom: 12px;">🧠</div>
+          <h3 style="font-size: 17px; font-weight: 600; margin-bottom: 8px; color: #111;">One-time model download</h3>
+          <p style="font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 20px;">
+            Downloading an AI model to your device (~2.4 GB).<br>
+            After this, PYICE works <strong>completely offline</strong> — forever.
+          </p>
+          <div style="background: #E5E7EB; border-radius: 8px; height: 8px; overflow: hidden; margin-bottom: 10px;">
+            <div id="pyice-dl-bar" style="height: 100%; border-radius: 8px; background: linear-gradient(90deg, #3B82F6, #06B6D4); width: 0%; transition: width 0.3s ease;"></div>
+          </div>
+          <div id="pyice-dl-percent" style="font-size: 13px; font-weight: 600; color: #111; margin-bottom: 4px;">0%</div>
+          <div id="pyice-dl-text" style="font-size: 11px; color: #888;">Initializing...</div>
+          <div id="pyice-dl-mb" style="font-size: 11px; color: #aaa; margin-top: 4px;">0 MB / ~2400 MB</div>
+          <p style="font-size: 11px; color: #aaa; margin-top: 16px;">This download only happens once. The model is cached in your browser.</p>
+        </div>
+      </div>
+
       
       <div class="quiz-ui-content">
         <div class="quiz-status" id="quiz-status">Select quiz difficulty:</div>
@@ -257,7 +288,8 @@ class YouTubeQuizGenerator {
     const questionsContainer = document.getElementById('quiz-questions');
 
     quizDisplay.style.display = 'block';
-    questionsContainer.innerHTML = '<div class="loading">🎯 Generating AI-powered quiz questions...</div>';
+    questionsContainer.innerHTML = '<div class="loading">🎯 Generating AI-powered quiz questions...</div><div id="pyice-question-counter" style="font-size: 13px; color: #555; margin-top: 8px; min-height: 20px;">Analyzing transcript...</div>';
+    document.getElementById('quiz-status').innerHTML = '';
 
     try {
       let captionText = this.contentExtractor.getText();
@@ -266,56 +298,57 @@ class YouTubeQuizGenerator {
         throw new Error('Not enough content to generate quiz');
       }
 
-      // Language detection & translation
-      const { text: englishText } = await ensureEnglish(captionText, (msg) => {
-        document.getElementById('quiz-status').innerHTML = `<div class="language-info">${msg}</div>`;
-      });
-      this.contentExtractor.setText(englishText);
+      // Offline Language Detection (Phase 3)
+      const detectedLang = await window.PyiceAI.detectLanguage(captionText.slice(0, 500));
+      const LANG_MAP = {
+        'en': 'English', 'hi': 'Hindi', 'es': 'Spanish', 'fr': 'French',
+        'de': 'German', 'ja': 'Japanese', 'zh': 'Chinese', 'ar': 'Arabic',
+        'pt': 'Portuguese', 'ru': 'Russian', 'ko': 'Korean'
+      };
+      const languageName = LANG_MAP[detectedLang] || 'English';
+      document.getElementById('quiz-status').innerHTML = `<div class="language-info">🌍 Detected Language: ${languageName}</div>`;
 
-      const questions = await this.createAIQuizQuestions();
-      this.currentQuiz = questions;
+      // Generate Quiz with Streaming
+      const counterEl = document.getElementById('pyice-question-counter');
+      let quizData;
+      try {
+        quizData = await window.PyiceAI.generateQuizStreaming(
+          captionText,
+          this.difficultyLevel || 'medium',
+          languageName,
+          (rawText, questionsGenerated) => {
+            if (counterEl && questionsGenerated > 0) {
+              counterEl.textContent = `Generating question ${questionsGenerated} of 7...`;
+            }
+          }
+        );
+      } catch (err) {
+        if (err.message === 'USE_LOCAL_FALLBACK' || err.message.startsWith('PARSE_FAILED')) {
+          quizData = this.createDifficultyBasedLocalQuiz(captionText);
+        } else {
+          throw err;
+        }
+      }
+
+      const questions = Array.isArray(quizData) ? quizData
+                      : (quizData && Array.isArray(quizData.questions)) ? quizData.questions
+                      : null;
+
+      if (!questions || questions.length === 0) {
+        throw new Error('No valid questions generated — empty or malformed response');
+      }
+
+      const allowedTypes = DIFFICULTY_CONFIG[this.difficultyLevel].allowedTypes;
+      const validatedQuestions = this._validateQuestions(questions, allowedTypes);
+
+      this.currentQuiz = validatedQuestions;
       this.userAnswers = {};
-      this.displayQuiz(questions);
-      
-      document.getElementById('quiz-status').textContent = '';
-      
+      this.displayQuiz(validatedQuestions);
+
     } catch (error) {
       console.error('Quiz generation failed:', error);
       questionsContainer.innerHTML = '<div class="error">❌ Failed to generate quiz. Please try again.</div>';
       document.getElementById('quiz-status').innerHTML = '<span class="error">❌ Quiz generation failed. Please try again.</span>';
-    }
-  }
-
-  // ── AI Quiz Question Generation ──────────────────────────────────────────
-
-  async createAIQuizQuestions() {
-    const captionText = this.contentExtractor.getText();
-    const contentAnalysis = this.analyzeContentType(captionText);
-    const numericalData = this.extractNumericalData(captionText);
-    const allowedTypes = DIFFICULTY_CONFIG[this.difficultyLevel].allowedTypes;
-
-    // Build the prompt
-    const prompt = this._buildQuizPrompt(contentAnalysis, numericalData, allowedTypes, captionText);
-
-    try {
-      const questions = await GeminiClient.generateContent(prompt, {
-        model: GEMINI_MODELS.QUIZ,
-        maxOutputTokens: API_DEFAULTS.QUIZ_MAX_TOKENS
-      });
-
-      if (!Array.isArray(questions) || questions.length === 0) {
-        throw new Error('No valid questions generated');
-      }
-
-      return this._validateQuestions(questions, allowedTypes);
-
-    } catch (error) {
-      if (error instanceof ApiKeyMissingError) {
-        document.getElementById('quiz-status').innerHTML = 
-          '<span class="error">⚙️ Please set your Gemini API key in the PYICE extension popup first.</span>';
-      }
-      console.warn('AI generation failed, using local fallback:', error.message);
-      return this.createDifficultyBasedLocalQuiz(captionText);
     }
   }
 
@@ -360,27 +393,32 @@ QUESTION TYPE SPECIFICATIONS:
 5. "numerical": Calculate specific values with proper units
 6. "chemical-equation": Balance chemical reactions with proper stoichiometry
 
-Return ONLY a valid JSON array with this format:
-[
-  {
-    "type": "one_of_allowed_types",
-    "question": "Clear, exam-style question",
-    "options": ["A", "B", "C", "D"],
-    "correct": 0,
-    "answer": "expected answer text",
-    "detailedSolution": "Complete step-by-step solution",
-    "difficulty": "${this.difficultyLevel}",
-    "examTopic": "specific topic",
-    "marks": 1
-  }
-]
+Return ONLY a valid JSON object in EXACTLY this format (the questions key wraps the array):
+{
+  "questions": [
+    {
+      "type": "one_of_allowed_types",
+      "question": "Clear, exam-style question in English",
+      "options": ["A", "B", "C", "D"],
+      "correct": 0,
+      "answer": "expected answer text",
+      "detailedSolution": "Complete step-by-step solution",
+      "difficulty": "${this.difficultyLevel}",
+      "examTopic": "specific topic from the content",
+      "marks": 1
+    }
+  ]
+}
 
-Content: ${captionText}
+Content: ${captionText.substring(0, CONTENT_THRESHOLDS.MAX_CONTENT_FOR_API)}
 
 ${numericalData.formulas.length > 0 ? `FORMULAS: ${numericalData.formulas.slice(0, 5).join('; ')}` : ''}
 ${numericalData.examples.length > 0 ? `EXAMPLES: ${numericalData.examples.slice(0, 3).join('; ')}` : ''}
 
-IMPORTANT: Only generate question types in: ${allowedTypes.join(', ')}`;
+IMPORTANT RULES:
+- ALL questions and answers must be in ENGLISH only.
+- Only generate question types from: ${allowedTypes.join(', ')}
+- Do not include any text outside the JSON object.`;
   }
 
   _validateQuestions(questions, allowedTypes) {
@@ -582,25 +620,40 @@ IMPORTANT: Only generate question types in: ${allowedTypes.join(', ')}`;
         html += '</div>';
       } else if (q.type === 'short-answer') {
         html += `<div class="question-input">
-          <textarea rows="3" placeholder="Write your answer in 2-3 lines..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #28a745; border-radius: 8px; padding: 12px; font-family: inherit; resize: vertical;"></textarea>
+          <div class="pyice-voice-row">
+            <textarea rows="3" class="pyice-short-input" placeholder="Write your answer in 2-3 lines..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #28a745; border-radius: 8px; padding: 12px; font-family: inherit; resize: vertical;"></textarea>
+            <button class="pyice-mic-btn" title="Click to answer by voice">🎤</button>
+          </div>
         </div>`;
       } else if (q.type === 'long-answer') {
         html += `<div class="question-input">
-          <textarea rows="6" placeholder="Write detailed answer in 4-6 lines..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #dc3545; border-radius: 8px; padding: 12px; font-family: inherit; resize: vertical;"></textarea>
+          <div class="pyice-voice-row">
+            <textarea rows="6" class="pyice-short-input" placeholder="Write detailed answer in 4-6 lines..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #dc3545; border-radius: 8px; padding: 12px; font-family: inherit; resize: vertical;"></textarea>
+            <button class="pyice-mic-btn" title="Click to answer by voice">🎤</button>
+          </div>
         </div>`;
       } else if (q.type === 'derivation') {
         html += `<div class="question-input">
-          <textarea rows="8" placeholder="Show step-by-step derivation..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #6f42c1; border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; resize: vertical;"></textarea>
+          <div class="pyice-voice-row">
+            <textarea rows="8" class="pyice-short-input" placeholder="Show step-by-step derivation..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #6f42c1; border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace; resize: vertical;"></textarea>
+            <button class="pyice-mic-btn" title="Click to answer by voice">🎤</button>
+          </div>
           <div class="derivation-hint">💡 Include: Starting equations → Each step → Final result</div>
         </div>`;
       } else if (q.type === 'chemical-equation') {
         html += `<div class="question-input">
-          <input type="text" placeholder="Write balanced chemical equation (e.g., 2H₂ + O₂ → 2H₂O)" data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #fd7e14; border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace;">
+          <div class="pyice-voice-row">
+            <input type="text" class="pyice-blank-input" placeholder="Write balanced chemical equation (e.g., 2H₂ + O₂ → 2H₂O)" data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #fd7e14; border-radius: 8px; padding: 12px; font-family: 'Courier New', monospace;">
+            <button class="pyice-mic-btn" title="Click to answer by voice">🎤</button>
+          </div>
           <div class="equation-hint">💡 Balance the equation and use proper chemical formulas</div>
         </div>`;
       } else if (q.type === 'numerical') {
         html += `<div class="question-input">
-          <input type="text" placeholder="Enter numerical answer with units..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #007bff; border-radius: 8px; padding: 12px;">
+          <div class="pyice-voice-row">
+            <input type="text" class="pyice-blank-input" placeholder="Enter numerical answer with units..." data-question="${index}" data-answer="${q.answer}" style="width: 100%; border: 2px solid #007bff; border-radius: 8px; padding: 12px;">
+            <button class="pyice-mic-btn" title="Click to answer by voice">🎤</button>
+          </div>
           <div class="numerical-hint">💡 Include units and round to appropriate decimal places</div>
         </div>`;
       }
@@ -631,6 +684,116 @@ IMPORTANT: Only generate question types in: ${allowedTypes.join(', ')}`;
     container.querySelectorAll('textarea').forEach(textarea => {
       textarea.addEventListener('input', (e) => {
         this.userAnswers[parseInt(e.target.dataset.question)] = e.target.value;
+      });
+    });
+
+    // ── Voice Answer Input (Web Speech API) ──
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const langCodeMap = {
+      'English': 'en-US', 'Hindi': 'hi-IN', 'Spanish': 'es-ES', 'French': 'fr-FR',
+      'German': 'de-DE', 'Japanese': 'ja-JP', 'Chinese': 'zh-CN', 'Arabic': 'ar-SA',
+      'Portuguese': 'pt-BR', 'Russian': 'ru-RU', 'Korean': 'ko-KR'
+    };
+    const getLangCode = (langName) => langCodeMap[langName] || 'en-US';
+    
+    const statusEl = document.getElementById('quiz-status');
+    let selectedLanguage = 'English';
+    if (statusEl && statusEl.textContent.includes('Detected Language:')) {
+      selectedLanguage = statusEl.textContent.split('Detected Language:')[1].trim();
+    }
+
+    container.querySelectorAll('.pyice-voice-row').forEach(row => {
+      const btn = row.querySelector('.pyice-mic-btn');
+      const input = row.querySelector('.pyice-blank-input, .pyice-short-input');
+      
+      if (!SpeechRecognition || !btn || !input) {
+        if (btn) btn.style.display = 'none';
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = getLangCode(selectedLanguage);
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      let isRecording = false;
+
+      const setButtonState = (state) => {
+        btn.classList.remove('recording', 'processing');
+        if (state === 'recording') {
+          btn.classList.add('recording');
+          btn.title = 'Recording... click to stop';
+          btn.textContent = '⏹';
+        } else if (state === 'processing') {
+          btn.classList.add('processing');
+          btn.title = 'Processing...';
+          btn.textContent = '⏳';
+        } else {
+          btn.title = 'Click to answer by voice';
+          btn.textContent = '🎤';
+        }
+      };
+
+      recognition.onstart = () => { setButtonState('recording'); };
+
+      recognition.onresult = (event) => {
+        let interimText = '';
+        let finalText = '';
+        for (const result of event.results) {
+          if (result.isFinal) finalText += result[0].transcript;
+          else interimText += result[0].transcript;
+        }
+        input.value = finalText;
+        if (interimText) {
+          input.placeholder = interimText;
+        }
+        
+        // Ensure user answers array is updated with live text
+        const qIndex = parseInt(input.dataset.question);
+        if (!isNaN(qIndex)) this.userAnswers[qIndex] = finalText;
+      };
+
+      recognition.onend = () => {
+        setButtonState('idle');
+        input.placeholder = input.tagName.toLowerCase() === 'textarea' ? 'Type your answer...' : 'Enter answer...';
+        if (window.activeRecognition === recognition) {
+          window.activeRecognition = null;
+        }
+        if (input.value.trim()) {
+          input.style.borderColor = '#22C55E';
+          setTimeout(() => input.style.borderColor = '', 800);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        setButtonState('idle');
+        if (event.error === 'not-allowed') {
+          if (window.showToast) window.showToast('Microphone permission denied. Allow mic access in Chrome settings.');
+          else alert('Microphone permission denied. Allow mic access in Chrome settings.');
+        } else if (event.error === 'no-speech') {
+          if (window.showToast) window.showToast('No speech detected. Try again.');
+          else alert('No speech detected. Try again.');
+        }
+      };
+
+      btn.addEventListener('click', () => {
+        if (isRecording) {
+          recognition.stop();
+          isRecording = false;
+        } else {
+          if (window.activeRecognition) {
+            window.activeRecognition.stop();
+            window.activeRecognition = null;
+          }
+          input.value = '';
+          input.placeholder = 'Listening...';
+          const qIndex = parseInt(input.dataset.question);
+          if (!isNaN(qIndex)) this.userAnswers[qIndex] = '';
+          window.activeRecognition = recognition;
+          recognition.start();
+          isRecording = true;
+        }
       });
     });
   }
@@ -903,12 +1066,52 @@ IMPORTANT: Only generate question types in: ${allowedTypes.join(', ')}`;
         </div>`;
       }
 
+      if (!q.isCorrect) {
+        const originalQ = this.currentQuiz[index];
+        html += `
+          <button
+            class="pyice-review-btn"
+            data-timestamp="${originalQ.timestamp || 0}"
+            data-qid="${originalQ.id || index}"
+          >
+            📍 Review in video
+          </button>
+        `;
+      }
+
       html += `</div>`;
     });
 
     html += `</div>`;
     container.innerHTML = html;
     container.style.display = 'block';
+
+    const reviewBtns = container.querySelectorAll('.pyice-review-btn');
+    reviewBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const ts = parseFloat(this.dataset.timestamp) || 0;
+        const seekTo = Math.max(0, ts - 5);
+        const video = document.querySelector('video.video-stream.html5-main-video')
+                   || document.querySelector('video');
+        if (!video) {
+          if (typeof window.showToast === 'function') {
+            window.showToast('Video not ready — try again in a moment');
+          } else {
+            alert('Video not ready — try again in a moment');
+          }
+          return;
+        }
+        video.currentTime = seekTo;
+        video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        video.classList.add('pyice-video-highlight');
+        setTimeout(() => video.classList.remove('pyice-video-highlight'), 1800);
+        const m = Math.floor(seekTo / 60);
+        const s = String(Math.floor(seekTo % 60)).padStart(2, '0');
+        this.textContent = '▶ Playing from ' + m + ':' + s;
+        this.disabled = true;
+        this.style.opacity = '0.65';
+      });
+    });
   }
 
   // ── Leaderboard ──────────────────────────────────────────────────────────

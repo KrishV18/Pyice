@@ -5,6 +5,18 @@
  * Dependencies: constants.js, storage.js, ai-client.js, content-extractor.js, language.js
  */
 
+import { templateRouter } from './svg-templates.js';
+
+function parseAIJson(raw) {
+  if (typeof raw === 'object') return raw;
+  const stripped = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  return JSON.parse(stripped);
+}
+
+function isValidDiagramSchema(obj) {
+  return obj && typeof obj === 'object' && typeof obj.type === 'string';
+}
+
 class YouTubeNotesGenerator {
   constructor() {
     this.contentExtractor = new ContentExtractor();
@@ -131,13 +143,17 @@ class YouTubeNotesGenerator {
         throw new Error('Not enough content to generate notes');
       }
 
-      // Language detection & translation
-      const { text: englishText } = await ensureEnglish(captionText, (msg) => {
-        document.getElementById('notes-status').innerHTML = `<div class="language-info">${msg}</div>`;
-      });
-      this.contentExtractor.setText(englishText);
+      // Offline Language Detection (Phase 3)
+      const detectedLang = await window.PyiceAI.detectLanguage(captionText.slice(0, 500));
+      const LANG_MAP = {
+        'en': 'English', 'hi': 'Hindi', 'es': 'Spanish', 'fr': 'French',
+        'de': 'German', 'ja': 'Japanese', 'zh': 'Chinese', 'ar': 'Arabic',
+        'pt': 'Portuguese', 'ru': 'Russian', 'ko': 'Korean'
+      };
+      const languageName = LANG_MAP[detectedLang] || 'English';
+      document.getElementById('notes-status').innerHTML = `<div class="language-info">🌍 Detected Language: ${languageName}</div>`;
 
-      const notes = await this.createAIStudyNotes();
+      const notes = await this.createAIStudyNotes(languageName);
       if (!notes || typeof notes !== 'object') throw new Error('Invalid notes generated');
 
       this.currentNotes = notes;
@@ -159,83 +175,28 @@ class YouTubeNotesGenerator {
 
   // ── AI Notes Generation ──────────────────────────────────────────────────
 
-  async createAIStudyNotes() {
+  async createAIStudyNotes(languageName) {
     const captionText = this.contentExtractor.getText();
 
-    const prompt = `You are an expert visual educator and diagram creator.
-Generate study notes that are 75% VISUALS and only 25% text.
-The notes should be designed such that they can be printed as a PDF and used for study.
-
-CRITICAL VISUAL REQUIREMENTS:
-- Generate 8-12 visuals minimum for comprehensive coverage
-- Each major topic MUST have 2-3 different visual representations
-- Create detailed SVG diagrams, flowcharts, concept maps, and process diagrams
-
-VISUAL TYPES TO CREATE:
-1. Main concept overview diagram (SVG mindmap)
-2. Detailed process flowcharts for each topic (SVG)
-3. Comparison charts/tables (SVG)
-4. Timeline diagrams if applicable (SVG)
-5. Hierarchical structure diagrams (SVG)
-6. Data visualization charts (SVG)
-7. Summary infographics (SVG)
-
-JSON Structure:
-{
-  "title": "[Topic]",
-  "primaryVisuals": [
-    {
-      "type": "mindmap",
-      "title": "Complete Topic Overview",
-      "description": "Deep explanation of concepts",
-      "svg": "<svg viewBox='0 0 500 400'>...</svg>",
-      "detailedExplanation": "What this visual teaches"
-    }
-  ],
-  "topicVisuals": [
-    {
-      "topicName": "First Major Topic",
-      "visuals": [
-        {
-          "type": "diagram",
-          "title": "Topic 1 - Core Concepts",
-          "svg": "<svg viewBox='0 0 500 400'>...</svg>",
-          "explanation": "detailed overview"
-        },
-        {
-          "type": "image",
-          "title": "Topic 1 - Application",
-          "imageUrl": "https://via.placeholder.com/500x350/1a73e8/ffffff?text=Topic_1",
-          "explanation": "How this applies"
-        }
-      ]
-    }
-  ],
-  "Summary": "Bullet point summary of key concepts"
-}
-
-CONTENT TO ANALYZE:
-${captionText.substring(0, CONTENT_THRESHOLDS.MAX_CONTENT_FOR_API)}`;
-
     try {
-      const notes = await GeminiClient.generateContent(prompt, {
-        model: GEMINI_MODELS.NOTES,
-        maxOutputTokens: API_DEFAULTS.NOTES_MAX_TOKENS,
-        temperature: API_DEFAULTS.NOTES_TEMPERATURE,
-        topK: API_DEFAULTS.NOTES_TOP_K,
-        topP: API_DEFAULTS.NOTES_TOP_P,
-        timeoutMs: API_DEFAULTS.TIMEOUT_MS
-      });
-      return notes;
-    } catch (error) {
-      if (error instanceof ApiKeyMissingError) {
-        document.getElementById('notes-status').innerHTML =
-          '<div class="error-notes">⚙️ Please set your Gemini API key in the PYICE extension popup.</div>';
-      } else if (error instanceof ApiTimeoutError) {
-        document.getElementById('notes-status').innerHTML =
-          '<div class="error-notes">⏰ Request timed out. Using local generation...</div>';
+      let notesData;
+      try {
+        notesData = await window.PyiceAI.generateNotes(
+          captionText,
+          languageName
+        );
+      } catch (err) {
+        if (err.message === 'USE_LOCAL_FALLBACK' || err.message.startsWith('PARSE_FAILED')) {
+          console.warn('[PYICE] ChromeAI not available or failed to parse, using local fallback');
+          return this.createLocalStudyNotes();
+        } else {
+          throw err;
+        }
       }
-      console.warn('AI notes failed, using local fallback:', error.message);
+
+      return notesData;
+    } catch (error) {
+      console.error('🔴 PYICE AI notes generation FAILED:', error);
       return this.createLocalStudyNotes();
     }
   }
@@ -357,11 +318,38 @@ ${captionText.substring(0, CONTENT_THRESHOLDS.MAX_CONTENT_FOR_API)}`;
     const notesContent = document.getElementById('notes-content');
     let html = `
       <div class="notes-header-section">
-        <div class="notes-title">${notes.title || 'Visual Study Guide'}</div>
+        <div class="notes-title">${notes.topic || notes.title || 'Visual Study Guide'}</div>
         <div class="notes-subtitle">SMART NOTES</div>
       </div>`;
 
-    // Primary visuals
+    if (notes.summary || notes.Summary) {
+      html += `
+        <div class="text-section-title">📝 Summary</div>
+        <div class="summary-content">${notes.summary || notes.Summary || 'Key learning objectives covered above.'}</div>`;
+    }
+
+    if (notes.key_concepts && notes.key_concepts.length > 0) {
+      html += `<div class="text-section-title">🔑 Key Concepts</div>
+               <ul style="margin-bottom: 20px; line-height: 1.6; padding-left: 20px;">
+                 ${notes.key_concepts.map(c => `<li>${c}</li>`).join('')}
+               </ul>`;
+    }
+
+    if (notes.diagrams && notes.diagrams.length > 0) {
+      html += '<div class="visual-section-title">📊 Diagrams</div>';
+      notes.diagrams.forEach(diagram => {
+        if (!isValidDiagramSchema(diagram)) return;
+        
+        const svgString = templateRouter(diagram);
+        html += `
+          <div class="enhanced-visual-block">
+            <div class="visual-title">${diagram.title || 'Diagram'}</div>
+            <div class="svg-visual-container">${svgString}</div>
+          </div>`;
+      });
+    }
+
+    // Primary visuals (Legacy / Local fallback)
     if (notes.primaryVisuals && notes.primaryVisuals.length > 0) {
       html += '<div class="visual-section-title">🎯 Core Concept Overview</div>';
       notes.primaryVisuals.forEach(visual => {
@@ -374,7 +362,7 @@ ${captionText.substring(0, CONTENT_THRESHOLDS.MAX_CONTENT_FOR_API)}`;
       });
     }
 
-    // Topic visuals
+    // Topic visuals (Legacy / Local fallback)
     if (notes.topicVisuals && notes.topicVisuals.length > 0) {
       notes.topicVisuals.forEach((topicGroup, idx) => {
         html += `<div class="topic-header">${topicGroup.topicName || `Topic ${idx + 1}`}</div>`;
@@ -390,10 +378,14 @@ ${captionText.substring(0, CONTENT_THRESHOLDS.MAX_CONTENT_FOR_API)}`;
       });
     }
 
-    // Summary
+    if (notes.flashcards && notes.flashcards.length > 0) {
+      html += `<div class="text-section-title">📇 Flashcards</div>
+               <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                 ${notes.flashcards.map(f => `<div style="padding:15px; border:1px solid #ddd; border-radius:8px;"><strong>Front:</strong> ${f.front}<br/><strong>Back:</strong> ${f.back}</div>`).join('')}
+               </div>`;
+    }
+
     html += `
-      <div class="text-section-title">📝 Summary</div>
-      <div class="summary-content">${notes.Summary || notes.minimalTextSummary || notes.textSummary || 'Key learning objectives covered above.'}</div>
       <div class="notes-actions">
         <button class="action-btn" id="view-pdf-btn">📄 View as PDF</button>
       </div>`;
@@ -569,4 +561,5 @@ ${clone.outerHTML}
   }
 }
 
+window.YouTubeNotesGenerator = YouTubeNotesGenerator;
 console.log('📝 PYICE Notes Generator module loaded');

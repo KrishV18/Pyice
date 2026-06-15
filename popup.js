@@ -1,68 +1,71 @@
 /**
  * PYICE Popup Script
- * Handles API key management and status display in the extension popup.
+ * Handles API key management (Groq + Gemini) and status display in the extension popup.
  */
 
-const STORAGE_KEY = 'pyice_api_key';
+const GEMINI_STORAGE_KEY = 'pyice_api_key';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const input = document.getElementById('api-key-input');
-  const toggleBtn = document.getElementById('toggle-key');
-  const saveBtn = document.getElementById('save-key');
-  const clearBtn = document.getElementById('clear-key');
-  const statusMsg = document.getElementById('key-status');
-  const statusBar = document.getElementById('status-bar');
+  // ── Gemini Key Elements ─────────────────────────────────────────────────
+  const geminiInput     = document.getElementById('api-key-input');
+  const geminiToggle    = document.getElementById('toggle-key');
+  const geminiSave      = document.getElementById('save-key');
+  const geminiClear     = document.getElementById('clear-key');
+  const geminiStatus    = document.getElementById('key-status');
 
-  // ── Load existing key ──────────────────────────────────────────────────
+  const statusBar       = document.getElementById('status-bar');
+
+  // ── Load existing keys ─────────────────────────────────────────────────
   try {
-    const result = await chrome.storage.sync.get(STORAGE_KEY);
-    const savedKey = result[STORAGE_KEY] || '';
-    if (savedKey) {
-      input.value = savedKey;
-      showStatus('✅ API key loaded', 'success');
+    const result = await chrome.storage.sync.get([GEMINI_STORAGE_KEY]);
+
+    const savedGemini = result[GEMINI_STORAGE_KEY] || '';
+    if (savedGemini) {
+      geminiInput.value = savedGemini;
+      showStatus(geminiStatus, '✅ Gemini key loaded', 'success');
     }
   } catch (e) {
-    console.warn('Could not load key:', e);
+    console.warn('Could not load keys:', e);
   }
 
-  // ── Toggle visibility ──────────────────────────────────────────────────
-  toggleBtn.addEventListener('click', () => {
-    if (input.type === 'password') {
-      input.type = 'text';
-      toggleBtn.textContent = '🙈';
+  // ── Gemini Key: Toggle visibility ───────────────────────────────────────
+  geminiToggle.addEventListener('click', () => {
+    if (geminiInput.type === 'password') {
+      geminiInput.type = 'text';
+      geminiToggle.textContent = '🙈';
     } else {
-      input.type = 'password';
-      toggleBtn.textContent = '👁';
+      geminiInput.type = 'password';
+      geminiToggle.textContent = '👁';
     }
   });
 
-  // ── Save key ───────────────────────────────────────────────────────────
-  saveBtn.addEventListener('click', async () => {
-    const key = input.value.trim();
+  // ── Gemini Key: Save ────────────────────────────────────────────────────
+  geminiSave.addEventListener('click', async () => {
+    const key = geminiInput.value.trim();
     if (!key) {
-      showStatus('⚠️ Please enter an API key', 'error');
+      showStatus(geminiStatus, '⚠️ Please enter a Gemini API key', 'error');
       return;
     }
     if (!key.startsWith('AIza')) {
-      showStatus('⚠️ Invalid key format (should start with AIza)', 'error');
+      showStatus(geminiStatus, '⚠️ Invalid key format (should start with AIza)', 'error');
       return;
     }
     try {
-      await chrome.storage.sync.set({ [STORAGE_KEY]: key });
-      showStatus('✅ API key saved successfully!', 'success');
+      await chrome.storage.sync.set({ [GEMINI_STORAGE_KEY]: key });
+      showStatus(geminiStatus, '✅ Gemini API key saved!', 'success');
     } catch (e) {
-      showStatus('❌ Failed to save key', 'error');
+      showStatus(geminiStatus, '❌ Failed to save key', 'error');
     }
   });
 
-  // ── Clear key ──────────────────────────────────────────────────────────
-  clearBtn.addEventListener('click', async () => {
+  // ── Gemini Key: Clear ───────────────────────────────────────────────────
+  geminiClear.addEventListener('click', async () => {
     try {
-      await chrome.storage.sync.remove(STORAGE_KEY);
-      input.value = '';
-      showStatus('🗑 API key cleared', 'success');
+      await chrome.storage.sync.remove(GEMINI_STORAGE_KEY);
+      geminiInput.value = '';
+      showStatus(geminiStatus, '🗑 Gemini key cleared', 'success');
     } catch (e) {
-      showStatus('❌ Failed to clear key', 'error');
+      showStatus(geminiStatus, '❌ Failed to clear key', 'error');
     }
   });
 
@@ -81,9 +84,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     statusBar.className = 'status-bar not-ready';
   }
 
-  function showStatus(message, type) {
-    statusMsg.textContent = message;
-    statusMsg.className = `status-msg ${type}`;
-    setTimeout(() => { statusMsg.className = 'status-msg'; }, 3000);
+  function showStatus(element, message, type) {
+    element.textContent = message;
+    element.className = `status-msg ${type}`;
+    setTimeout(() => { element.className = 'status-msg'; }, 3000);
   }
 });

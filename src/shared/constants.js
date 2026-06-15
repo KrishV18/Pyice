@@ -5,21 +5,71 @@
 
 // ── API Configuration ──────────────────────────────────────────────────────────
 
+// Gemini (fallback / SVG-quality tasks)
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+// Groq (primary — fast inference)
+const GROQ_API_BASE = 'https://api.groq.com/openai/v1/chat/completions';
+
+/**
+ * Smart Task Router
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Maps each feature to the optimal model + provider combination.
+ *
+ *  Task           Load     Output              Provider  Model
+ *  ─────────────  ───────  ──────────────────  ────────  ──────────────────────
+ *  quiz           Heavy    structured JSON      Groq      llama-3.3-70b-versatile
+ *  notes          Heaviest SVG-heavy / long     Groq      llama-3.3-70b-versatile
+ *                          (fallback)           Gemini    gemini-2.5-flash
+ *  translate      Light    short text           Groq      llama-3.1-8b-instant
+ *  detect         Lightest single-word          Groq      llama-3.1-8b-instant
+ */
+const MODEL_ROUTER = {
+  quiz: {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    jsonMode: true,
+    maxTokens: 8192,
+    temperature: 0.3
+  },
+  notes: {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    jsonMode: true,
+    maxTokens: 8192,
+    temperature: 0.7
+  },
+  translate: {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    jsonMode: false,
+    maxTokens: 2048,
+    temperature: 0.1
+  },
+  detect: {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    jsonMode: false,
+    maxTokens: 16,
+    temperature: 0.0
+  }
+};
+
+// Keep GEMINI_MODELS alias so existing call-sites using GEMINI_MODELS.QUIZ / .NOTES / .TRANSLATE
+// continue to work unchanged during migration.
 const GEMINI_MODELS = {
-  QUIZ:      'gemini-2.5-pro',    // Best quality for complex question generation
-  NOTES:     'gemini-2.5-pro',    // Best quality for structured notes + SVG
-  TRANSLATE: 'gemini-2.5-flash'   // Fast + accurate for language translation
+  QUIZ: MODEL_ROUTER.quiz.model,
+  NOTES: MODEL_ROUTER.notes.model,
+  TRANSLATE: MODEL_ROUTER.translate.model
 };
 
 const API_DEFAULTS = {
-  QUIZ_MAX_TOKENS: 8192,
-  NOTES_MAX_TOKENS: 8192,
-  NOTES_TEMPERATURE: 0.7,
+  QUIZ_MAX_TOKENS: MODEL_ROUTER.quiz.maxTokens,
+  NOTES_MAX_TOKENS: MODEL_ROUTER.notes.maxTokens,
+  NOTES_TEMPERATURE: MODEL_ROUTER.notes.temperature,
   NOTES_TOP_K: 40,
   NOTES_TOP_P: 0.95,
-  TIMEOUT_MS: 60000,      // 60s — gemini-2.5-pro can take longer on complex prompts
+  TIMEOUT_MS: 60000,    // 60s — llama-3.3-70b can take longer on complex SVG prompts
   RETRY_COUNT: 2,
   RETRY_DELAY_MS: 2000
 };
@@ -62,7 +112,7 @@ const CONTENT_THRESHOLDS = {
   CAPTION_AUTO_STOP_CHARS: 3000,
   NOTES_CAPTION_AUTO_STOP_CHARS: 800,
   CAPTION_CHECK_INTERVAL_MS: 50000,
-  MAX_CONTENT_FOR_API: 8000,
+  MAX_CONTENT_FOR_API: Infinity,
   MIN_KEY_TERM_LENGTH: 4,
   MIN_KEY_TERM_OCCURRENCES: 2
 };
@@ -194,7 +244,8 @@ const SVG_COLORS = {
 // ── Storage Keys ───────────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  API_KEY: 'pyice_api_key',
+  API_KEY: 'pyice_api_key',      // Gemini key
+  GROQ_API_KEY: 'pyice_groq_api_key', // Groq key (primary provider)
   SETTINGS: 'pyice_settings',
   QUIZ_CACHE_PREFIX: 'pyice_quiz_cache_',
   NOTES_CACHE_PREFIX: 'pyice_notes_cache_',
@@ -212,4 +263,4 @@ const GRADE_THRESHOLDS = [
   { min: 0, text: 'Keep studying! Review the content thoroughly and try again.', color: '#dc3545', grade: 'F' }
 ];
 
-console.log('📦 PYICE constants loaded');
+console.log('📦 PYICE constants loaded — multi-provider model router active');

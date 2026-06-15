@@ -1,2 +1,29 @@
 # Ignore the config file so the API key doesn't get uploaded to GitHub
 src/shared/config.js
+
+# Node dependencies
+node_modules/
+
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# Build artifacts and compiled code
+dist/
+__pycache__/
+*.py[cod]
+
+# Sensitive files / Credentials
+www.youtube.com_cookies.txt
+.env
+.env.*
+
+# Project specific data files and test outputs
+PYICE_DATA/
+test_json.en.json3
+test_transcript.en.vtt
+
+# OS generated files
+.DS_Store
+Thumbs.db

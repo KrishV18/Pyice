@@ -595,3 +595,82 @@
 
   body { background: white; }
 }
+
+/* ── Timestamp-Linked Review ────────────────────────────────────────────── */
+.pyice-review-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid #F97316;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.15s;
+}
+.pyice-review-btn:hover:not(:disabled) {
+  background: #FFEDD5;
+}
+
+@keyframes pyice-video-glow {
+  0%   { outline: 3px solid rgba(249, 115, 22, 0.9); outline-offset: -3px; }
+  100% { outline: 3px solid rgba(249, 115, 22, 0); outline-offset: -3px; }
+}
+.pyice-video-highlight {
+  animation: pyice-video-glow 1.8s ease-out forwards;
+}
+
+/* ── Voice Answer Input ─────────────────────────────────────────────────── */
+.pyice-voice-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.pyice-voice-row .pyice-blank-input,
+.pyice-voice-row .pyice-short-input {
+  flex: 1;
+}
+.pyice-mic-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #D1D5DB;
+  background: #F3F4F6;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  position: relative;
+}
+.pyice-mic-btn.recording {
+  background: #FEE2E2;
+  border-color: #EF4444;
+}
+.pyice-mic-btn.recording::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid #EF4444;
+  animation: pyice-mic-pulse 1s ease-in-out infinite;
+}
+@keyframes pyice-mic-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(1.15); }
+}
+.pyice-mic-btn.processing {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+}
+
+/* ── Concept Heatmap ────────────────────────────────────────────────────── */
+.pyice-marker-complex  { background: #F97316; box-shadow: 0 0 4px rgba(249,115,22,0.6); }
+.pyice-marker-moderate { background: #3B82F6; box-shadow: 0 0 3px rgba(59,130,246,0.5); }
+.pyice-heatmap-marker:hover { transform: translate(-50%, -50%) scale(1.8) !important; }

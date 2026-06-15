@@ -1,0 +1,30 @@
+{
+  "name": "pyice",
+  "version": "1.0.0",
+  "description": "A Chrome extension that generates AI-powered quizzes and visual study notes from YouTube video content.",
+  "main": "popup.js",
+  "scripts": {
+    "build": "esbuild src/ai-provider.js --bundle --outfile=dist/ai-provider.bundle.js --platform=browser --format=iife --global-name=PyiceAIModule --minify",
+    "build:watch": "esbuild src/ai-provider.js --bundle --outfile=dist/ai-provider.bundle.js --platform=browser --format=iife --global-name=PyiceAIModule --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrishV18/Pyice.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/KrishV18/Pyice/issues"
+  },
+  "homepage": "https://github.com/KrishV18/Pyice#readme",
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@mlc-ai/web-llm": "^0.2.84"
+  }
+}

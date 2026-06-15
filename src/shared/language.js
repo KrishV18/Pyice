@@ -1,6 +1,6 @@
 /**
  * PYICE Language Module
- * Language detection and translation via Gemini API.
+ * Language detection and translation via AIRouter (Groq primary, Gemini fallback).
  * Shared by both quiz and notes generators.
  */
 
@@ -58,10 +58,9 @@ async function translateToEnglish(text, sourceLang) {
     const langName = getLanguageName(sourceLang);
     const prompt = `Translate this ${langName} text to English, maintaining educational context. Return ONLY the translated text, nothing else:\n\n"${text}"`;
 
-    const translated = await GeminiClient.generateContent(prompt, {
-      model: GEMINI_MODELS.TRANSLATE,
-      parseJson: false,
-      timeoutMs: 20000
+    const translated = await AIRouter.generateContent(prompt, {
+      task:      'translate',
+      parseJson: false
     });
 
     return translated || text;

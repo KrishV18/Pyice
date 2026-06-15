@@ -38,6 +38,22 @@ class ContentExtractor {
       if (apiText && apiText.trim().length >= minChars) {
         this.captionText = apiText;
         onStatus('✅ Transcript extracted successfully!');
+        
+        // Heatmap generation
+        if (window.initHeatmap && this.transcriptData) {
+          const video = document.querySelector('video');
+          const waitForDuration = () => {
+            if (video && video.duration && video.duration > 0) {
+              window.initHeatmap(this.transcriptData, video.duration);
+            } else if (video) {
+              video.addEventListener('loadedmetadata', () => {
+                window.initHeatmap(this.transcriptData, video.duration);
+              }, { once: true });
+            }
+          };
+          waitForDuration();
+        }
+
         onSuccess(this.captionText);
         return;
       }
@@ -151,11 +167,18 @@ class ContentExtractor {
 
     const data = await response.json();
 
-    // json3 format: { events: [{ segs: [{ utf8: "text" }] }] }
-    const text = (data.events || [])
+    // json3 format: { events: [{ tStartMs: 12500, dDurationMs: 3200, segs: [{ utf8: "text" }] }] }
+    this.transcriptData = (data.events || [])
       .filter(e => e.segs)
-      .flatMap(e => e.segs)
-      .map(s => s.utf8 || '')
+      .map(e => ({
+        text: e.segs.map(s => s.utf8 || '').join(' ').trim(),
+        start: (e.tStartMs || 0) / 1000,
+        duration: (e.dDurationMs || 0) / 1000
+      }))
+      .filter(e => e.text.length > 0);
+
+    const text = this.transcriptData
+      .map(e => e.text)
       .join(' ')
       .replace(/\n/g, ' ')
       .replace(/\s+/g, ' ')
